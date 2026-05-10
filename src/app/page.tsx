@@ -1,12 +1,12 @@
-import Clicker from './Clicker'; // Подключаем твой основной код
+import Clicker from './Clicker'; // Подключаем твою игру с частицами
 
 export const metadata = {
-  title: 'Sportik Game Hub — начинающий хаб с играми',
-  description: 'Играй в Super Clicker и другие аркадные игры прямо в браузере. Ставь рекорды и прокачивай свой уровень!',
-  keywords: ['кликер', 'онлайн игры', 'game arcade', 'super clicker', 'играть бесплатно', 'Game hub', 'Sportik'],
+  title: 'Sportik Game Hub — Играй в Super Clicker онлайн',
+  description: 'Лучший хаб с аркадными играми. Кликай, зарабатывай очки, покупай улучшения и стань БОГОМ клика в Sportik Game Hub!',
+  keywords: ['кликер', 'sportik', 'game hub', 'играть онлайн', 'бесплатные игры', 'super clicker'],
   openGraph: {
     title: 'Sportik Game Hub',
-    description: 'скоро будет больше игр!',
+    description: 'Ставь рекорды в нашем крутом кликере!',
     type: 'website',
   },
 };
