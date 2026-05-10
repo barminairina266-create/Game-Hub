@@ -38,15 +38,22 @@ export default function Clicker() {
     return () => clearInterval(interval);
   }, [autoclicks]);
 
+// Функция клика с ИСПРАВЛЕННЫМ созданием частицы
   const handleMainClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     setScore(score + clickValue);
+    
+    // МЫ ПОМЕНЯЛИ clientX/Y НА pageX/Y!
+    // Теперь цифры появятся точно под курсором.
     const newParticle: Particle = {
       id: Date.now(),
-      x: e.clientX,
-      y: e.clientY,
+      x: e.pageX, // МЕНЯЕМ ЗДЕСЬ
+      y: e.pageY, // МЕНЯЕМ ЗДЕСЬ
       value: clickValue
     };
+
     setParticles(prev => [...prev, newParticle]);
+
+    // Удаляем цифру через 1 секунду
     setTimeout(() => {
       setParticles(prev => prev.filter(p => p.id !== newParticle.id));
     }, 1000);
@@ -80,8 +87,14 @@ export default function Clicker() {
         .action-btn { background: #e94560; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; display: block; margin: 10px auto; }
         .action-btn:disabled { background: gray; cursor: not-allowed; }
         .particle {
-          position: fixed; pointer-events: none; font-weight: bold; font-size: 24px; color: #e94560;
-          animation: floatUp 1s ease-out forwards; z-index: 100;
+          position: absolute; /* Убедись, что здесь absolute */
+          pointer-events: none;
+          font-weight: bold;
+          font-size: 28px; /* Сделаем побольше для теста */
+          color: #e94560;
+          text-shadow: 0 0 5px rgba(0,0,0,0.5); /* Добавим тень для видимости */
+          animation: floatUp 1s ease-out forwards;
+          z-index: 9999; /* Поверх всего */
         }
         @keyframes floatUp {
           0% { opacity: 1; transform: translateY(0); }
