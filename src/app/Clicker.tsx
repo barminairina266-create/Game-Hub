@@ -23,6 +23,7 @@ export default function Clicker() {
   const [score, setScore] = useState<number>(0);
   const [autoclicks, setAutoclicks] = useState<number>(0);
   const [clickValue, setClickValue] = useState<number>(1);
+  const [superclick, setSuperClicks] = useState<number>(0); // Новое улучшение
   const [particles, setParticles] = useState<Particle[]>([]);
   const [user, setUser] = useState<UserProfile | null>(null);
   
@@ -40,10 +41,13 @@ export default function Clicker() {
       const savedScore = localStorage.getItem(`${prefix}score`);
       const savedAuto = localStorage.getItem(`${prefix}auto`);
       const savedValue = localStorage.getItem(`${prefix}value`);
+      // ИСПРАВЛЕНО: Заменили обычные кавычки на косые бэктэки ``
+      const savedSuperClicks = localStorage.getItem(`${prefix}superclicks`);
       
       setScore(savedScore ? parseInt(savedScore) : 0);
       setAutoclicks(savedAuto ? parseInt(savedAuto) : 0);
       setClickValue(savedValue ? parseInt(savedValue) : 1);
+      setSuperClicks(savedSuperClicks ? parseInt(savedSuperClicks) : 0);
       
       setIsAuthLoading(false);
     };
@@ -84,7 +88,7 @@ export default function Clicker() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 2. ИСПРАВЛЕННОЕ АВТОСОХРАНЕНИЕ ПРОГРЕССА (Следит только за email-строкой!)
+  // 2. АВТОСОХРАНЕНИЕ ПРОГРЕССА
   useEffect(() => {
     if (isAuthLoading) return;
 
@@ -93,7 +97,9 @@ export default function Clicker() {
     localStorage.setItem(`${prefix}score`, score.toString());
     localStorage.setItem(`${prefix}auto`, autoclicks.toString());
     localStorage.setItem(`${prefix}value`, clickValue.toString());
-  }, [score, autoclicks, clickValue, userEmail, isAuthLoading]);
+    // ИСПРАВЛЕНО: Заменили кавычки на косые бэктэки ``
+    localStorage.setItem(`${prefix}superclicks`, superclick.toString());
+  }, [score, autoclicks, clickValue, superclick, userEmail, isAuthLoading]);
 
   // 3. АВТОКЛИКЕР
   useEffect(() => {
@@ -113,6 +119,8 @@ export default function Clicker() {
     localStorage.removeItem('sportik_guest_score');
     localStorage.removeItem('sportik_guest_auto');
     localStorage.removeItem('sportik_guest_value');
+    // ИСПРАВЛЕНО: Выровняли название ключа с буквой "s" на конце
+    localStorage.removeItem('sportik_guest_superclicks');
     
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -132,6 +140,7 @@ export default function Clicker() {
     setScore(0);
     setAutoclicks(0);
     setClickValue(1);
+    setSuperClicks(0);
     setUser(null);
 
     await supabase.auth.signOut();
@@ -140,13 +149,16 @@ export default function Clicker() {
 
   // ЛОГИКА КЛИКА
   const handleMainClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    setScore(prev => prev + clickValue);
+    // Рассчитываем полный урон за один клик (Базовый палец + все суперклики по +5)
+    const totalClickPower = clickValue + (superclick * 5);
+    
+    setScore(prev => prev + totalClickPower);
     
     const newParticle: Particle = {
       id: Date.now() + Math.random(),
       x: e.pageX,
       y: e.pageY,
-      value: clickValue
+      value: totalClickPower // ИСПРАВЛЕНО: Теперь на экране вылетает честная сумма урона!
     };
     setParticles(prev => [...prev, newParticle]);
     setTimeout(() => {
@@ -156,6 +168,8 @@ export default function Clicker() {
 
   const autoClickPrice = 50 + (autoclicks * 25);
   const multiplyPrice = Math.round(100 * Math.pow(1.25, clickValue - 1));
+  // Математика цены: Стартует с 1000, каждый уровень прибавляет ровно +1000
+  const superClicksPrice = 1000 + (superclick * 1000);
 
   const getRank = () => {
     if (score < 100) return { text: "Новичок", color: "white" };
@@ -245,9 +259,16 @@ export default function Clicker() {
             <button className="action-btn" disabled={score < autoClickPrice} onClick={() => {
               if (score >= autoClickPrice) { setScore(prev => prev - autoClickPrice); setAutoclicks(prev => prev + 1); }
             }}>Купить Автоклик ({autoClickPrice})</button>
+            
             <button className="action-btn" disabled={score < multiplyPrice} onClick={() => {
               if (score >= multiplyPrice) { setScore(prev => prev - multiplyPrice); setClickValue(prev => prev + 1); }
             }}>Сильный палец ({multiplyPrice})</button>
+            
+            {/* Твоя новая крутая кнопка Супер Клика */}
+            <button className="action-btn" disabled={score < superClicksPrice} onClick={() => {
+              if (score >= superClicksPrice) { setScore(prev => prev - superClicksPrice); setSuperClicks(prev => prev + 1); }
+            }}>Супер клик +5 к клику ({superClicksPrice})</button>
+            
             <p className="mt-3">Звание: <span style={{ color: rank.color }}>{rank.text}</span></p>
           </div>
         </div>
