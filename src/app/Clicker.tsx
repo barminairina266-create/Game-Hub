@@ -33,7 +33,7 @@ export default function Clicker() {
   // 1. ЗАГРУЗКА ДАННЫХ ПРИ СТАРТЕ
   useEffect(() => {
     // Проверяем, вошел ли пользователь ранее (имитация сессии Google)
-    const savedUser = localStorage.getItem('sportik_user');
+    const savedUser = localStorage.getItem('Saved_user');
     if (savedUser) {
       setUser(JSON.parse(savedUser));
     }
@@ -71,14 +71,14 @@ export default function Clicker() {
       avatar: "👤"
     };
     setUser(mockUser);
-    localStorage.setItem('sportik_user', JSON.stringify(mockUser));
+    localStorage.setItem('Saved_user', JSON.stringify(mockUser));
     alert("Успешный вход через Google! Ваш прогресс теперь привязан к облаку.");
   };
 
   // ВЫХОД ИЗ АККАУНТА
   const handleLogout = () => {
     setUser(null);
-    localStorage.removeItem('sportik_user');
+    localStorage.removeItem('Saved_user');
   };
 
   // ЛОГИКА КЛИКА С ЦИФРАМИ
@@ -153,7 +153,7 @@ export default function Clicker() {
 
       {/* ШАПКА АВТОРИЗАЦИИ */}
       <div className="bg-[#001242] py-2 px-4 flex justify-between items-center text-sm border-b border-blue-900">
-        <div>🚀 Sportik Игрок: <span className="font-bold text-yellow-400">{user ? user.name : "Гость"}</span></div>
+        <div>🚀 Игрок: <span className="font-bold text-yellow-400">{user ? user.name : "Гость"}</span></div>
         <div>
           {user ? (
             <button onClick={handleLogout} className="bg-red-700 px-3 py-1 rounded text-xs hover:bg-red-600 transition">Выйти</button>
