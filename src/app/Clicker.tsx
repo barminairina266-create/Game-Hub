@@ -26,13 +26,16 @@ export default function Clicker() {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [user, setUser] = useState<UserProfile | null>(null);
   
-  // Флаг загрузки авторизации (Защита от перезаписи данных)
+  // Флаг загрузки авторизации
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+
+  // Извлекаем email в отдельную переменную для безопасного отслеживания в useEffect
+  const userEmail = user?.email || null;
 
   // 1. КОНТРОЛЬ СЕССИИ И ОЧКОВ ПРИ ЗАГРУЗКЕ
   useEffect(() => {
-    const loadProgressForUser = (userEmail: string | null) => {
-      const prefix = userEmail ? `sportik_${userEmail}_` : 'sportik_guest_';
+    const loadProgressForUser = (email: string | null) => {
+      const prefix = email ? `sportik_${email}_` : 'sportik_guest_';
       
       const savedScore = localStorage.getItem(`${prefix}score`);
       const savedAuto = localStorage.getItem(`${prefix}auto`);
@@ -42,7 +45,6 @@ export default function Clicker() {
       setAutoclicks(savedAuto ? parseInt(savedAuto) : 0);
       setClickValue(savedValue ? parseInt(savedValue) : 1);
       
-      // Разрешаем сохранение только ПОСЛЕ того, как данные загрузились
       setIsAuthLoading(false);
     };
 
@@ -64,7 +66,7 @@ export default function Clicker() {
 
     // Слушаем вход / выход
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setIsAuthLoading(true); // Замораживаем сохранения при смене статуса
+      setIsAuthLoading(true);
       if (session?.user) {
         const profile = {
           name: session.user.user_metadata.full_name || 'Игрок',
@@ -82,17 +84,16 @@ export default function Clicker() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 2. АВТОСОХРАНЕНИЕ ПРОГРЕССА (С ЗАЩИТОЙ)
+  // 2. ИСПРАВЛЕННОЕ АВТОСОХРАНЕНИЕ ПРОГРЕССА (Следит только за email-строкой!)
   useEffect(() => {
-    // ЕСЛИ ИДЕТ АВТОРИЗАЦИЯ — НЕ СОХРАНЯЕМ НИЧЕГО (Защита от сброса в 0)
     if (isAuthLoading) return;
 
-    const prefix = user ? `sportik_${user.email}_` : 'sportik_guest_';
+    const prefix = userEmail ? `sportik_${userEmail}_` : 'sportik_guest_';
     
     localStorage.setItem(`${prefix}score`, score.toString());
     localStorage.setItem(`${prefix}auto`, autoclicks.toString());
     localStorage.setItem(`${prefix}value`, clickValue.toString());
-  }, [score, autoclicks, clickValue, user, isAuthLoading]);
+  }, [score, autoclicks, clickValue, userEmail, isAuthLoading]);
 
   // 3. АВТОКЛИКЕР
   useEffect(() => {
@@ -109,7 +110,6 @@ export default function Clicker() {
   const handleGoogleLogin = async () => {
     setIsAuthLoading(true);
     
-    // Стираем гостя перед входом, как ты и просил
     localStorage.removeItem('sportik_guest_score');
     localStorage.removeItem('sportik_guest_auto');
     localStorage.removeItem('sportik_guest_value');
