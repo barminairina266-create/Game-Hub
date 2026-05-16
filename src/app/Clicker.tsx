@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { supabase } from './lib/supabase';
 
 // Структура для вылетающих цифр
 interface Particle {
@@ -32,12 +33,31 @@ export default function Clicker() {
 
   // 1. ЗАГРУЗКА ДАННЫХ ПРИ СТАРТЕ
   useEffect(() => {
-    // Проверяем, вошел ли пользователь ранее (имитация сессии Google)
-    const savedUser = localStorage.getItem('Saved_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
+    // 1. Проверяем текущую реальную сессию пользователя в Supabase
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser({
+          name: session.user.user_metadata.full_name || session.user.email || 'Игрок',
+          email: session.user.email || '',
+          avatar: '👤'
+        });
+      }
+    });
 
+    // Слушаем изменения статуса (вошел/вышел)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser({
+          name: session.user.user_metadata.full_name || session.user.email || 'Игрок',
+          email: session.user.email || '',
+          avatar: '👤'
+        });
+      } else {
+        setUser(null);
+      }
+    });
+
+    // Загрузка локальных очков (пока оставляем localStorage, базу очков подключим следующим шагом)
     const savedScore = localStorage.getItem('clickScore');
     const savedAuto = localStorage.getItem('clickAuto');
     const savedValue = localStorage.getItem('clickValue');
@@ -45,6 +65,8 @@ export default function Clicker() {
     if (savedScore) setScore(parseInt(savedScore));
     if (savedAuto) setAutoclicks(parseInt(savedAuto));
     if (savedValue) setClickValue(parseInt(savedValue));
+
+    return () => subscription.unsubscribe();
   }, []);
 
   // 2. АВТОСОХРАНЕНИЕ ПРОГРЕССА
@@ -63,22 +85,26 @@ export default function Clicker() {
   }, [autoclicks]);
 
   // ИМИТАЦИЯ ВХОДА ЧЕРЕЗ GOOGLE (Для работы прямо сейчас без настройки серверов)
-  const handleGoogleLogin = () => {
-    // Создаем профиль, как будто Google вернул нам данные игрока
-    const mockUser: UserProfile = {
-      name: "Andrey Sportik",
-      email: "andrey@gmail.com",
-      avatar: "👤"
-    };
-    setUser(mockUser);
-    localStorage.setItem('Saved_user', JSON.stringify(mockUser));
-    alert("Успешный вход через Google! Ваш прогресс теперь привязан к облаку.");
+  // НАСТОЯЩИЙ ВХОД ЧЕРЕЗ GOOGLE
+  const handleGoogleLogin = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        // Vercel автоматически подставит адрес твоего сайта при деплое
+        redirectTo: typeof window !== 'undefined' ? window.location.origin : '',
+      },
+    });
+
+    if (error) {
+      alert("Ошибка входа: " + error.message);
+    }
   };
 
-  // ВЫХОД ИЗ АККАУНТА
-  const handleLogout = () => {
+  // НАСТОЯЩИЙ ВЫХОД
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    localStorage.removeItem('Saved_user');
+    localStorage.removeItem('sportik_user');
   };
 
   // ЛОГИКА КЛИКА С ЦИФРАМИ
