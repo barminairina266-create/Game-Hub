@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 
 interface Particle {
@@ -26,65 +26,68 @@ export default function Clicker() {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [user, setUser] = useState<UserProfile | null>(null);
 
-  // Используем Ref, чтобы автокликер всегда видел самые свежие очки и не зависал
-  const scoreRef = useRef(score);
+  // 1. КОНТРОЛЬ СЕССИИ И ОЧКОВ ПРИ ЗАГРУЗКЕ
   useEffect(() => {
-    scoreRef.current = score;
-  }, [score]);
-
-  // 1. ЗАГРУЗКА ДАННЫХ ПРИ СТАРТЕ И СИНХРОНИЗАЦИЯ С GOOGLE
-  useEffect(() => {
-    // Функция для загрузки локального прогресса
-    const loadLocalProgress = () => {
-      const savedScore = localStorage.getItem('clickScore');
-      const savedAuto = localStorage.getItem('clickAuto');
-      const savedValue = localStorage.getItem('clickValue');
-      if (savedScore) setScore(parseInt(savedScore));
-      if (savedAuto) setAutoclicks(parseInt(savedAuto));
-      if (savedValue) setClickValue(parseInt(savedValue));
+    // Функция загрузки прогресса из памяти для конкретного режима (гость или юзер)
+    const loadProgressForUser = (userEmail: string | null) => {
+      // Создаем уникальный ключ для сохранения в зависимости от того, вошел ли игрок
+      const prefix = userEmail ? `sportik_${userEmail}_` : 'sportik_guest_';
+      
+      const savedScore = localStorage.getItem(`${prefix}score`);
+      const savedAuto = localStorage.getItem(`${prefix}auto`);
+      const savedValue = localStorage.getItem(`${prefix}value`);
+      
+      setScore(savedScore ? parseInt(savedScore) : 0);
+      setAutoclicks(savedAuto ? parseInt(savedAuto) : 0);
+      setClickValue(savedValue ? parseInt(savedValue) : 1);
     };
 
-    // Проверяем сессию Supabase
+    // Проверяем, авторизован ли пользователь в Supabase прямо сейчас
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        setUser({
+        const profile = {
           name: session.user.user_metadata.full_name || 'Игрок',
           email: session.user.email || '',
           avatar: '👤'
-        });
-        // Если вошли через Google, данные подтягиваются из localStorage этого браузера
-        loadLocalProgress();
+        };
+        setUser(profile);
+        loadProgressForUser(profile.email);
       } else {
-        loadLocalProgress();
+        setUser(null);
+        loadProgressForUser(null);
       }
     });
 
-    // Слушаем вход/выход
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Слушаем глобальные изменения (вход/выход)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
-        setUser({
+        const profile = {
           name: session.user.user_metadata.full_name || 'Игрок',
           email: session.user.email || '',
           avatar: '👤'
-        });
+        };
+        setUser(profile);
+        loadProgressForUser(profile.email);
       } else {
         setUser(null);
+        loadProgressForUser(null);
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // 2. АВТОСОХРАНЕНИЕ
+  // 2. АВТОСОХРАНЕНИЕ ПРОГРЕССА С УЧЕТОМ ТЕКУЩЕГО АККАУНТА
   useEffect(() => {
-    if (score > 0 || autoclicks > 0 || clickValue > 1) {
-      localStorage.setItem('clickScore', score.toString());
-      localStorage.setItem('clickAuto', autoclicks.toString());
-      localStorage.setItem('clickValue', clickValue.toString());
-    }
-  }, [score, autoclicks, clickValue]);
+    // Определяем, под каким ключом сохранять
+    const prefix = user ? `sportik_${user.email}_` : 'sportik_guest_';
+    
+    localStorage.setItem(`${prefix}score`, score.toString());
+    localStorage.setItem(`${prefix}auto`, autoclicks.toString());
+    localStorage.setItem(`${prefix}value`, clickValue.toString());
+  }, [score, autoclicks, clickValue, user]);
 
-  // 3. ИСПРАВЛЕННЫЙ АВТОКЛИКЕР (Больше не зависает при смене пользователя)
+  // 3. АВТОКЛИКЕРА РАБОТА С ПРИНУДИТЕЛЬНЫМ ОБНОВЛЕНИЕМ ЭКРАНА
   useEffect(() => {
     if (autoclicks === 0) return;
     
@@ -95,13 +98,13 @@ export default function Clicker() {
     return () => clearInterval(interval);
   }, [autoclicks]);
 
-  // ВХОД ЧЕРЕЗ GOOGLE
+  // НАСТОЯЩИЙ ВХОД ЧЕРЕЗ GOOGLE
   const handleGoogleLogin = async () => {
-    // Перед уходом на авторизацию принудительно сохраняем текущие очки
-    localStorage.setItem('clickScore', score.toString());
-    localStorage.setItem('clickAuto', autoclicks.toString());
-    localStorage.setItem('clickValue', clickValue.toString());
-
+    // ПРАВИЛО: Очки гостя перед входом стираем, чтобы они не переносились
+    localStorage.removeItem('sportik_guest_score');
+    localStorage.removeItem('sportik_guest_auto');
+    localStorage.removeItem('sportik_guest_value');
+    
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -111,22 +114,27 @@ export default function Clicker() {
     if (error) alert("Ошибка входа: " + error.message);
   };
 
-  // ВЫХОД
+  // НАСТОЯЩИЙ ВЫХОД
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
+    // Сначала обнуляем состояние в коде, чтобы экран мгновенно перерисовал 0
     setScore(0);
     setAutoclicks(0);
     setClickValue(1);
-    localStorage.clear(); // Полностью очищаем при выходе
+    setUser(null);
+
+    // Выходим из базы данных
+    await supabase.auth.signOut();
+    
+    // Перезагружаем интерфейс для чистоты данных
     window.location.reload();
   };
 
-  // ЛОГИКА КЛИКА (Исправленная)
+  // ЛОГИКА КЛИКА
   const handleMainClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     setScore(prev => prev + clickValue);
+    
     const newParticle: Particle = {
-      id: Date.now() + Math.random(), // Уникальный ID, чтобы не было дублей
+      id: Date.now() + Math.random(),
       x: e.pageX,
       y: e.pageY,
       value: clickValue
