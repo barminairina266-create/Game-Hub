@@ -25,12 +25,13 @@ export default function Clicker() {
   const [clickValue, setClickValue] = useState<number>(1);
   const [particles, setParticles] = useState<Particle[]>([]);
   const [user, setUser] = useState<UserProfile | null>(null);
+  
+  // Флаг загрузки авторизации (Защита от перезаписи данных)
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
 
   // 1. КОНТРОЛЬ СЕССИИ И ОЧКОВ ПРИ ЗАГРУЗКЕ
   useEffect(() => {
-    // Функция загрузки прогресса из памяти для конкретного режима (гость или юзер)
     const loadProgressForUser = (userEmail: string | null) => {
-      // Создаем уникальный ключ для сохранения в зависимости от того, вошел ли игрок
       const prefix = userEmail ? `sportik_${userEmail}_` : 'sportik_guest_';
       
       const savedScore = localStorage.getItem(`${prefix}score`);
@@ -40,9 +41,12 @@ export default function Clicker() {
       setScore(savedScore ? parseInt(savedScore) : 0);
       setAutoclicks(savedAuto ? parseInt(savedAuto) : 0);
       setClickValue(savedValue ? parseInt(savedValue) : 1);
+      
+      // Разрешаем сохранение только ПОСЛЕ того, как данные загрузились
+      setIsAuthLoading(false);
     };
 
-    // Проверяем, авторизован ли пользователь в Supabase прямо сейчас
+    // Проверяем сессию при старте
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         const profile = {
@@ -58,8 +62,9 @@ export default function Clicker() {
       }
     });
 
-    // Слушаем глобальные изменения (вход/выход)
+    // Слушаем вход / выход
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsAuthLoading(true); // Замораживаем сохранения при смене статуса
       if (session?.user) {
         const profile = {
           name: session.user.user_metadata.full_name || 'Игрок',
@@ -77,17 +82,19 @@ export default function Clicker() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 2. АВТОСОХРАНЕНИЕ ПРОГРЕССА С УЧЕТОМ ТЕКУЩЕГО АККАУНТА
+  // 2. АВТОСОХРАНЕНИЕ ПРОГРЕССА (С ЗАЩИТОЙ)
   useEffect(() => {
-    // Определяем, под каким ключом сохранять
+    // ЕСЛИ ИДЕТ АВТОРИЗАЦИЯ — НЕ СОХРАНЯЕМ НИЧЕГО (Защита от сброса в 0)
+    if (isAuthLoading) return;
+
     const prefix = user ? `sportik_${user.email}_` : 'sportik_guest_';
     
     localStorage.setItem(`${prefix}score`, score.toString());
     localStorage.setItem(`${prefix}auto`, autoclicks.toString());
     localStorage.setItem(`${prefix}value`, clickValue.toString());
-  }, [score, autoclicks, clickValue, user]);
+  }, [score, autoclicks, clickValue, user, isAuthLoading]);
 
-  // 3. АВТОКЛИКЕРА РАБОТА С ПРИНУДИТЕЛЬНЫМ ОБНОВЛЕНИЕМ ЭКРАНА
+  // 3. АВТОКЛИКЕР
   useEffect(() => {
     if (autoclicks === 0) return;
     
@@ -98,9 +105,11 @@ export default function Clicker() {
     return () => clearInterval(interval);
   }, [autoclicks]);
 
-  // НАСТОЯЩИЙ ВХОД ЧЕРЕЗ GOOGLE
+  // ВХОД ЧЕРЕЗ GOOGLE
   const handleGoogleLogin = async () => {
-    // ПРАВИЛО: Очки гостя перед входом стираем, чтобы они не переносились
+    setIsAuthLoading(true);
+    
+    // Стираем гостя перед входом, как ты и просил
     localStorage.removeItem('sportik_guest_score');
     localStorage.removeItem('sportik_guest_auto');
     localStorage.removeItem('sportik_guest_value');
@@ -111,21 +120,21 @@ export default function Clicker() {
         redirectTo: typeof window !== 'undefined' ? window.location.origin : '',
       },
     });
-    if (error) alert("Ошибка входа: " + error.message);
+    if (error) {
+      alert("Ошибка входа: " + error.message);
+      setIsAuthLoading(false);
+    }
   };
 
-  // НАСТОЯЩИЙ ВЫХОД
+  // ВЫХОД
   const handleLogout = async () => {
-    // Сначала обнуляем состояние в коде, чтобы экран мгновенно перерисовал 0
+    setIsAuthLoading(true);
     setScore(0);
     setAutoclicks(0);
     setClickValue(1);
     setUser(null);
 
-    // Выходим из базы данных
     await supabase.auth.signOut();
-    
-    // Перезагружаем интерфейс для чистоты данных
     window.location.reload();
   };
 
@@ -199,7 +208,9 @@ export default function Clicker() {
       <div className="bg-[#001242] py-2 px-4 flex justify-between items-center text-sm border-b border-blue-900">
         <div>🚀 Sportik Игрок: <span className="font-bold text-yellow-400">{user ? user.name : "Гость"}</span></div>
         <div>
-          {user ? (
+          {isAuthLoading ? (
+            <span className="text-xs text-gray-400">Сессия...</span>
+          ) : user ? (
             <button onClick={handleLogout} className="bg-red-700 px-3 py-1 rounded text-xs hover:bg-red-600 transition">Выйти</button>
           ) : (
             <button onClick={handleGoogleLogin} className="google-btn">
