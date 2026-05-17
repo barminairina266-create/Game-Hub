@@ -305,7 +305,7 @@ export default function Clicker() {
 
       <div className="bg-[#001242] py-2 px-4 flex justify-between items-center text-sm border-b border-blue-900">
         <div className="flex items-center gap-3">
-          <div>🚀 Sportik: <span className="font-bold text-yellow-400">{user ? user.name : "Гость"}</span></div>
+          <div>🚀 Аккаунт: <span className="font-bold text-yellow-400">{user ? user.name : "Гость"}</span></div>
           {user && <span className="text-xs px-2 py-0.5 bg-blue-900 rounded text-gray-300">{cloudStatus}</span>}
         </div>
         <div>
@@ -381,7 +381,7 @@ export default function Clicker() {
             </button>
             
             <button className="action-btn" disabled={score < multiplyPrice} onClick={() => { if (score >= multiplyPrice) { setScore(prev => prev - multiplyPrice); setClickValue(prev => prev + 1); } }}>
-              ({clickValue - 1} шт) Сильный палец ({multiplyPrice})
+              ({clickValue - 1} шт) Сильный палец +1 к клику ({multiplyPrice})
             </button>
             
             <button className="action-btn" disabled={score < superClicksPrice} onClick={() => { if (score >= superClicksPrice) { setScore(prev => prev - superClicksPrice); setSuperClicks(prev => prev + 1); } }}>
