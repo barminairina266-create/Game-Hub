@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 
 interface Particle { id: number; x: number; y: number; value: number; }
@@ -20,15 +20,15 @@ export default function Clicker() {
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [cloudStatus, setCloudStatus] = useState<string>('Синхронизировано');
 
-  // --- НОВЫЕ СОСТОЯНИЯ ДЛЯ БУСТА ---
+  // БУСТ
   const [isBoostActive, setIsBoostActive] = useState<boolean>(false);
-  const [boostTimeLeft, setBoostTimeLeft] = useState<number>(0); // Оставшееся время буста в секундах
+  const [boostTimeLeft, setBoostTimeLeft] = useState<number>(0);
   const BOOST_PRICE = 5000;
-  const BOOST_DURATION = 15; // Длительность в секундах
+  const BOOST_DURATION = 15;
 
   const userEmail = user?.email || null;
 
-  // ФУНКЦИЯ: Отправка данных в облако Supabase
+  // ФУНКЦИЯ: Отправка данных в облако
   const saveToCloud = async (currentScore: number, currentAuto: number, currentValue: number, currentSuper: number, email: string) => {
     try {
       setCloudStatus('Сохранение в облако...');
@@ -41,7 +41,7 @@ export default function Clicker() {
           click_value: currentValue,
           superclicks: currentSuper,
           updated_at: new Date().toISOString()
-        }); 
+        });
       if (error) throw error;
       setCloudStatus('Облако синхронизировано ✓');
     } catch (err) {
@@ -111,7 +111,7 @@ export default function Clicker() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 2. МГНОВЕННОЕ ЛОКАЛЬНОЕ АВТОСОХРАНЕНИЕ
+  // 2. ЛОКАЛЬНОЕ АВТОСОХРАНЕНИЕ
   useEffect(() => {
     if (isAuthLoading) return;
     const prefix = userEmail ? `sportik_${userEmail}_` : 'sportik_guest_';
@@ -121,7 +121,7 @@ export default function Clicker() {
     localStorage.setItem(`${prefix}superclicks`, superclick.toString());
   }, [score, autoclicks, clickValue, superclick, userEmail, isAuthLoading]);
 
-  // 3. ТАЙМЕР ОБЛАЧНОЙ СИНХРОНИЗАЦИИ (Каждые 15 секунд)
+  // 3. ОБЛАЧНАЯ СИНХРОНИЗАЦИЯ
   useEffect(() => {
     if (!userEmail || isAuthLoading) return;
     const cloudInterval = setInterval(() => {
@@ -130,21 +130,19 @@ export default function Clicker() {
     return () => clearInterval(cloudInterval);
   }, [score, autoclicks, clickValue, superclick, userEmail, isAuthLoading]);
 
-  // 4. АВТОКЛИКЕР (Учитывает буст!)
+  // 4. АВТОКЛИКЕР
   useEffect(() => {
     if (autoclicks === 0) return;
     const interval = setInterval(() => {
-      // Если буст активен, автокликер тоже генерирует в 2 раза больше очков!
       const finalAutoValue = isBoostActive ? autoclicks * 2 : autoclicks;
       setScore(prev => prev + finalAutoValue);
     }, 1000);
     return () => clearInterval(interval);
   }, [autoclicks, isBoostActive]);
 
-  // --- 5. ТАЙМЕР ДЛЯ РАБОТЫ БУСТА ---
+  // 5. ТАЙМЕР БУСТА
   useEffect(() => {
     if (!isBoostActive) return;
-
     const timer = setInterval(() => {
       setBoostTimeLeft(prev => {
         if (prev <= 1) {
@@ -155,10 +153,8 @@ export default function Clicker() {
         return prev - 1;
       });
     }, 1000);
-
     return () => clearInterval(timer);
   }, [isBoostActive]);
-
 
   // ВХОД / ВЫХОД
   const handleGoogleLogin = async () => {
@@ -182,15 +178,10 @@ export default function Clicker() {
     window.location.reload();
   };
 
-  // КЛИК ПО КНОПКЕ
+  // КЛИК
   const handleMainClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     let totalClickPower = clickValue + (superclick * 5);
-    
-    // Если буст активен — умножаем всю силу клика на 2!
-    if (isBoostActive) {
-      totalClickPower = totalClickPower * 2;
-    }
-
+    if (isBoostActive) { totalClickPower = totalClickPower * 2; }
     setScore(prev => prev + totalClickPower);
     
     const newParticle: Particle = { id: Date.now() + Math.random(), x: e.pageX, y: e.pageY, value: totalClickPower };
@@ -198,7 +189,6 @@ export default function Clicker() {
     setTimeout(() => { setParticles(prev => prev.filter(p => p.id !== newParticle.id)); }, 800);
   };
 
-  // ФУНКЦИЯ: Активация буста
   const handleActivateBoost = () => {
     if (score >= BOOST_PRICE && !isBoostActive) {
       setScore(prev => prev - BOOST_PRICE);
@@ -207,15 +197,13 @@ export default function Clicker() {
     }
   };
 
-  // Цены улучшений
   const autoClickPrice = 50 + (autoclicks * 25);
   const multiplyPrice = Math.round(100 * Math.pow(1.25, clickValue - 1));
   const superClicksPrice = 1000 + (superclick * 1000);
 
-  // Расчет процентов заполнения шкалы буста
   const boostPercentage = isBoostActive 
-    ? (boostTimeLeft / BOOST_DURATION) * 100 // Когда активен — плавно падает от 100% до 0%
-    : Math.min((score / BOOST_PRICE) * 100, 100); // Когда копится — растет от текущих очков до 100%
+    ? (boostTimeLeft / BOOST_DURATION) * 100 
+    : Math.min((score / BOOST_PRICE) * 100, 100);
 
   const rank = (() => {
     if (score < 100) return { text: "Новичок", color: "white" };
@@ -226,44 +214,35 @@ export default function Clicker() {
 
   return (
     <div className="min-h-screen bg-[#000064] text-white font-sans text-center m-0 overflow-hidden select-none">
+      {/* СТАТИЧНЫЕ СТИЛИ (БЕЗ ДИНАМИЧЕСКИХ ПЕРЕМЕННЫХ) */}
       <style jsx global>{`
         .game-card { background: #001c69; border: 2px solid #0f3460; border-radius: 15px; padding: 20px; width: 200px; transition: 0.3s; }
         .game-card:hover { transform: translateY(-10px); border-color: #e94560; }
         .icon { font-size: 50px; margin-bottom: 10px; }
         
-        /* Кнопка клика с поддержкой анимации буста */
         .click-btn {
           width: 150px; height: 150px; border-radius: 50%; font-size: 20px;
-          background: ${isBoostActive ? 'linear-gradient(45deg, #ff416c, #ff4b2b)' : 'radial-gradient(#e94560, #950740)'};
-          box-shadow: ${isBoostActive ? '0 0 35px #ff4b2b' : '0 0 20px rgba(233, 69, 96, 0.5)'};
-          border: ${isBoostActive ? '3px solid #fff' : 'none'};
-          color: white; cursor: pointer; font-weight: bold; transition: transform 0.05s, background 0.3s;
-          animation: ${isBoostActive ? 'pulse 1s infinite alternate' : 'none'};
+          color: white; cursor: pointer; font-weight: bold; border: none;
+          transition: transform 0.05s, background 0.3s, box-shadow 0.3s;
         }
         .click-btn:active { transform: scale(0.9); }
+        .pulse-animation { animation: pulse 1s infinite alternate; border: 3px solid #fff !important; }
         @keyframes pulse { 0% { transform: scale(1); } 100% { transform: scale(1.08); } }
 
         .action-btn { background: #e94560; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; display: block; margin: 10px auto; }
         .action-btn:disabled { background: gray; cursor: not-allowed; }
         .google-btn { background: white; color: #333; border: none; padding: 4px 12px; border-radius: 20px; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-size: 12px; transition: 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
         .google-btn:hover { background: #f1f1f1; transform: scale(1.05); }
-        .particle { position: absolute; pointer-events: none; font-weight: bold; font-size: 28px; color: ${isBoostActive ? '#ffeb3b' : '#e94560'}; text-shadow: 0 0 5px rgba(0,0,0,0.5); animation: floatUp 0.8s ease-out forwards; z-index: 9999; }
+        
+        .particle { position: absolute; pointer-events: none; font-weight: bold; font-size: 28px; text-shadow: 0 0 5px rgba(0,0,0,0.5); animation: floatUp 0.8s ease-out forwards; z-index: 9999; }
         @keyframes floatUp { 0% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-80px); } }
 
-        /* Стиль шкалы прогресса буста */
         .boost-container {
           width: 300px; height: 45px; background: #001242; border: 2px solid #0f3460;
           border-radius: 25px; margin: 20px auto; position: relative; overflow: hidden;
-          cursor: ${score >= BOOST_PRICE && !isBoostActive ? 'pointer' : 'not-allowed'};
-          box-shadow: ${score >= BOOST_PRICE && !isBoostActive ? '0 0 15px #00ffcc' : 'none'};
           transition: 0.3s;
         }
-        .boost-bar {
-          height: 100%; 
-          background: ${isBoostActive ? 'linear-gradient(90deg, #ff4b2b, #ff416c)' : 'linear-gradient(90deg, #00c6ff, #0072ff)'};
-          /* Если буст активен, уменьшение идет плавно раз в секунду, если копится — быстро прыгает по очкам за 1-2 секунды */
-          transition: ${isBoostActive ? 'width 1s linear' : 'width 1.5s cubic-bezier(0.25, 1, 0.5, 1)'}; 
-        }
+        .boost-bar { height: 100%; }
         .boost-text {
           position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
           font-weight: bold; font-size: 14px; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); pointer-events: none;
@@ -271,12 +250,18 @@ export default function Clicker() {
       `}</style>
 
       {particles.map(p => (
-        <div key={p.id} className="particle" style={{ left: p.x, top: p.y }}>+{p.value}</div>
+        <div 
+          key={p.id} 
+          className="particle" 
+          style={{ left: p.x, top: p.y, color: isBoostActive ? '#ffeb3b' : '#e94560' }}
+        >
+          +{p.value}
+        </div>
       ))}
 
       <div className="bg-[#001242] py-2 px-4 flex justify-between items-center text-sm border-b border-blue-900">
         <div className="flex items-center gap-3">
-          <div>🚀 Sportik Игрок: <span className="font-bold text-yellow-400">{user ? user.name : "Гость"}</span></div>
+          <div>🚀 Sportik: <span className="font-bold text-yellow-400">{user ? user.name : "Гость"}</span></div>
           {user && <span className="text-xs px-2 py-0.5 bg-blue-900 rounded text-gray-300">{cloudStatus}</span>}
         </div>
         <div>
@@ -305,11 +290,26 @@ export default function Clicker() {
         <div className="py-10">
           <button className="action-btn mb-6" onClick={() => setGameState('hub')}>⬅ В меню</button>
           
+          {/* ГЛАВНЫЙ СЧЕТЧИК ТЕПЕРЬ СВЯЗАН ЧИСТЫМ СПОСОБОМ */}
           <h2 className="text-3xl font-bold mb-4">Очки: {score}</h2>
           
-          {/* ИНТЕРАКТИВНАЯ ШКАЛА БУСТА */}
-          <div className="boost-container" onClick={handleActivateBoost}>
-            <div className="boost-bar" style={{ width: `${boostPercentage}%` }}></div>
+          {/* ИНЛАЙН СТИЛИ ДЛЯ ШКАЛЫ (РАБОТАЕТ НА ТЕЛЕФОНАХ ИДЕАЛЬНО) */}
+          <div 
+            className="boost-container" 
+            onClick={handleActivateBoost}
+            style={{ 
+              cursor: score >= BOOST_PRICE && !isBoostActive ? 'pointer' : 'not-allowed',
+              boxShadow: score >= BOOST_PRICE && !isBoostActive ? '0 0 15px #00ffcc' : 'none'
+            }}
+          >
+            <div 
+              className="boost-bar" 
+              style={{ 
+                width: `${boostPercentage}%`,
+                background: isBoostActive ? 'linear-gradient(90deg, #ff4b2b, #ff416c)' : 'linear-gradient(90deg, #00c6ff, #0072ff)',
+                transition: isBoostActive ? 'width 1s linear' : 'width 1.5s cubic-bezier(0.25, 1, 0.5, 1)'
+              }}
+            ></div>
             <div className="boost-text">
               {isBoostActive 
                 ? `🔥 БУСТ Х2 АКТИВЕН: ${boostTimeLeft}с` 
@@ -320,7 +320,17 @@ export default function Clicker() {
             </div>
           </div>
 
-          <button className="click-btn mt-4" onClick={handleMainClick}>КЛИК!</button>
+          {/* ИНЛАЙН СТИЛИ ДЛЯ КНОПКИ */}
+          <button 
+            className={`click-btn mt-4 ${isBoostActive ? 'pulse-animation' : ''}`}
+            onClick={handleMainClick}
+            style={{
+              background: isBoostActive ? 'linear-gradient(45deg, #ff416c, #ff4b2b)' : 'radial-gradient(#e94560, #950740)',
+              boxShadow: isBoostActive ? '0 0 35px #ff4b2b' : '0 0 20px rgba(233, 69, 96, 0.5)'
+            }}
+          >
+            КЛИК!
+          </button>
           
           <div className="mt-5">
             <button className="action-btn" disabled={score < autoClickPrice} onClick={() => { if (score >= autoClickPrice) { setScore(prev => prev - autoClickPrice); setAutoclicks(prev => prev + 1); } }}>Купить Автоклик ({autoClickPrice})</button>
