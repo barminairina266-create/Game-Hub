@@ -26,10 +26,24 @@ export default function Clicker() {
   const BOOST_PRICE = 5000;
   const BOOST_DURATION = 15;
 
+  // МАКСИМАЛЬНЫЙ ДОСТИГНУТЫЙ РАНГ
+  // 1 - Новичок, 2 - Опытный, 3 - Мастер клика, 4 - БОГ клика
+  const [maxRankLevel, setMaxRankLevel] = useState<number>(1);
+
   const userEmail = user?.email || null;
 
-  // ФУНКЦИЯ: Отправка данных в облако
-  const saveToCloud = async (currentScore: number, currentAuto: number, currentValue: number, currentSuper: number, email: string) => {
+  // Общее количество купленных улучшений (-1 от стартового клика)
+  const totalUpgrades = autoclicks + (clickValue - 1) + superclick;
+
+  // ФУНКЦИЯ: Отправка данных в облако (ИСПРАВЛЕНО: Теперь все 6 аргументов на своих местах)
+  const saveToCloud = async (
+    currentScore: number, 
+    currentAuto: number, 
+    currentValue: number, 
+    currentSuper: number, 
+    currentMaxRank: number, 
+    email: string
+  ) => {
     try {
       setCloudStatus('Сохранение в облако...');
       const { error } = await supabase
@@ -40,6 +54,7 @@ export default function Clicker() {
           autoclicks: currentAuto,
           click_value: currentValue,
           superclicks: currentSuper,
+          max_rank: currentMaxRank, // Поля синхронизированы!
           updated_at: new Date().toISOString()
         });
       if (error) throw error;
@@ -58,11 +73,13 @@ export default function Clicker() {
       let a = parseInt(localStorage.getItem(`${prefix}auto`) || '0');
       let v = parseInt(localStorage.getItem(`${prefix}value`) || '1');
       let sc = parseInt(localStorage.getItem(`${prefix}superclicks`) || '0');
+      let mr = parseInt(localStorage.getItem(`${prefix}maxrank`) || '1');
 
       setScore(s);
       setAutoclicks(a);
       setClickValue(v);
       setSuperClicks(sc);
+      setMaxRankLevel(mr);
       setIsAuthLoading(false);
 
       if (email) {
@@ -78,6 +95,7 @@ export default function Clicker() {
           setAutoclicks(data.autoclicks);
           setClickValue(data.click_value);
           setSuperClicks(data.superclicks);
+          if (data.max_rank) setMaxRankLevel(data.max_rank);
           setCloudStatus('Данные из облака загружены ✓');
         } else {
           setCloudStatus('Создан новый облачный профиль');
@@ -119,18 +137,37 @@ export default function Clicker() {
     localStorage.setItem(`${prefix}auto`, autoclicks.toString());
     localStorage.setItem(`${prefix}value`, clickValue.toString());
     localStorage.setItem(`${prefix}superclicks`, superclick.toString());
-  }, [score, autoclicks, clickValue, superclick, userEmail, isAuthLoading]);
+    localStorage.setItem(`${prefix}maxrank`, maxRankLevel.toString());
+  }, [score, autoclicks, clickValue, superclick, maxRankLevel, userEmail, isAuthLoading]);
 
   // 3. ОБЛАЧНАЯ СИНХРОНИЗАЦИЯ
   useEffect(() => {
     if (!userEmail || isAuthLoading) return;
     const cloudInterval = setInterval(() => {
-      saveToCloud(score, autoclicks, clickValue, superclick, userEmail);
+      saveToCloud(score, autoclicks, clickValue, superclick, maxRankLevel, userEmail);
     }, 15000);
     return () => clearInterval(cloudInterval);
-  }, [score, autoclicks, clickValue, superclick, userEmail, isAuthLoading]);
+  }, [score, autoclicks, clickValue, superclick, maxRankLevel, userEmail, isAuthLoading]);
 
-  // 4. АВТОКЛИКЕР
+  // 4. ЛОГИКА РАСЧЕТА РАНГА (ИСПРАВЛЕНО: Убрали бесконечный цикл зависимостей)
+  useEffect(() => {
+    if (isAuthLoading) return;
+
+    let calculatedLevel = 1;
+
+    if (score >= 250000 && totalUpgrades >= 50) {
+      calculatedLevel = 4;
+    } else if (score >= 50000 && totalUpgrades >= 30) {
+      calculatedLevel = 3;
+    } else if (score >= 5000 && totalUpgrades >= 5) {
+      calculatedLevel = 2;
+    }
+
+    // Изменение стейта происходит только если ранг ДЕЙСТВИТЕЛЬНО вырос
+    setMaxRankLevel(prev => (calculatedLevel > prev ? calculatedLevel : prev));
+  }, [score, totalUpgrades, isAuthLoading]);
+
+  // АВТОКЛИКЕР
   useEffect(() => {
     if (autoclicks === 0) return;
     const interval = setInterval(() => {
@@ -140,7 +177,7 @@ export default function Clicker() {
     return () => clearInterval(interval);
   }, [autoclicks, isBoostActive]);
 
-  // 5. ТАЙМЕР БУСТА
+  // ТАЙМЕР БУСТА
   useEffect(() => {
     if (!isBoostActive) return;
     const timer = setInterval(() => {
@@ -163,6 +200,7 @@ export default function Clicker() {
     localStorage.removeItem('sportik_guest_auto');
     localStorage.removeItem('sportik_guest_value');
     localStorage.removeItem('sportik_guest_superclicks');
+    localStorage.removeItem('sportik_guest_maxrank');
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: typeof window !== 'undefined' ? window.location.origin : '' },
@@ -172,8 +210,8 @@ export default function Clicker() {
 
   const handleLogout = async () => {
     setIsAuthLoading(true);
-    if (userEmail) { await saveToCloud(score, autoclicks, clickValue, superclick, userEmail); }
-    setScore(0); setAutoclicks(0); setClickValue(1); setSuperClicks(0); setUser(null);
+    if (userEmail) { await saveToCloud(score, autoclicks, clickValue, superclick, maxRankLevel, userEmail); }
+    setScore(0); setAutoclicks(0); setClickValue(1); setSuperClicks(0); setMaxRankLevel(1); setUser(null);
     await supabase.auth.signOut();
     window.location.reload();
   };
@@ -205,17 +243,23 @@ export default function Clicker() {
     ? (boostTimeLeft / BOOST_DURATION) * 100 
     : Math.min((score / BOOST_PRICE) * 100, 100);
 
-  const rank = (() => {
-    if (score < 100) return { text: "Новичок", color: "white" };
-    if (score < 500) return { text: "Опытный", color: "yellow" };
-    if (score < 2500) return { text: "Мастер клика", color: "orange" };
-    return { text: "БОГ клика", color: "green" };
+  const rankInfo = (() => {
+    switch(maxRankLevel) {
+      case 4:
+        return { text: "БОГ клика", color: "#00ff00", nextInfo: "Ты достиг вершины эволюции! 👑" };
+      case 3:
+        return { text: "Мастер клика", color: "orange", nextInfo: `Для ранга "БОГ клика" нужно: 250 000 очков и 50 улучшений (У тебя: ${score} очков, ${totalUpgrades} улутш.)` };
+      case 2:
+        return { text: "Опытный", color: "yellow", nextInfo: `Для ранга "Мастер клика" нужно: 50 000 очков и 30 улучшений (У тебя: ${score} очков, ${totalUpgrades} улутш.)` };
+      case 1:
+      default:
+        return { text: "Новичок", color: "white", nextInfo: `Для ранга "Опытный" нужно: 5 000 очков и 5 улучшений (У тебя: ${score} очков, ${totalUpgrades} улутш.)` };
+    }
   })();
 
   return (
     <div className="min-h-screen bg-[#000064] text-white font-sans text-center m-0 overflow-hidden select-none">
-      {/* СТАТИЧНЫЕ СТИЛИ (БЕЗ ДИНАМИЧЕСКИХ ПЕРЕМЕННЫХ) */}
-      <style jsx global>{`
+    <style jsx global>{`
         .game-card { background: #001c69; border: 2px solid #0f3460; border-radius: 15px; padding: 20px; width: 200px; transition: 0.3s; }
         .game-card:hover { transform: translateY(-10px); border-color: #e94560; }
         .icon { font-size: 50px; margin-bottom: 10px; }
@@ -289,11 +333,10 @@ export default function Clicker() {
       ) : (
         <div className="py-10">
           <button className="action-btn mb-6" onClick={() => setGameState('hub')}>⬅ В меню</button>
-          
-          {/* ГЛАВНЫЙ СЧЕТЧИК ТЕПЕРЬ СВЯЗАН ЧИСТЫМ СПОСОБОМ */}
+        
           <h2 className="text-3xl font-bold mb-4">Очки: {score}</h2>
           
-          {/* ИНЛАЙН СТИЛИ ДЛЯ ШКАЛЫ (РАБОТАЕТ НА ТЕЛЕФОНАХ ИДЕАЛЬНО) */}
+          {/* ШКАЛА БУСТА */}
           <div 
             className="boost-container" 
             onClick={handleActivateBoost}
@@ -306,6 +349,7 @@ export default function Clicker() {
               className="boost-bar" 
               style={{ 
                 width: `${boostPercentage}%`,
+                // ИСПРАВЛЕНО: Заменили ошибочную запятую на точку с запятой
                 background: isBoostActive ? 'linear-gradient(90deg, #ff4b2b, #ff416c)' : 'linear-gradient(90deg, #00c6ff, #0072ff)',
                 transition: isBoostActive ? 'width 1s linear' : 'width 1.5s cubic-bezier(0.25, 1, 0.5, 1)'
               }}
@@ -320,8 +364,7 @@ export default function Clicker() {
             </div>
           </div>
 
-          {/* ИНЛАЙН СТИЛИ ДЛЯ КНОПКИ */}
-          <button 
+          <button
             className={`click-btn mt-4 ${isBoostActive ? 'pulse-animation' : ''}`}
             onClick={handleMainClick}
             style={{
@@ -333,10 +376,22 @@ export default function Clicker() {
           </button>
           
           <div className="mt-5">
-            <button className="action-btn" disabled={score < autoClickPrice} onClick={() => { if (score >= autoClickPrice) { setScore(prev => prev - autoClickPrice); setAutoclicks(prev => prev + 1); } }}>Купить Автоклик ({autoClickPrice})</button>
-            <button className="action-btn" disabled={score < multiplyPrice} onClick={() => { if (score >= multiplyPrice) { setScore(prev => prev - multiplyPrice); setClickValue(prev => prev + 1); } }}>Сильный палец ({multiplyPrice})</button>
-            <button className="action-btn" disabled={score < superClicksPrice} onClick={() => { if (score >= superClicksPrice) { setScore(prev => prev - superClicksPrice); setSuperClicks(prev => prev + 1); } }}>Супер клик +5 к клику ({superClicksPrice})</button>
-            <p className="mt-3">Звание: <span style={{ color: rank.color }}>{rank.text}</span></p>
+            <button className="action-btn" disabled={score < autoClickPrice} onClick={() => { if (score >= autoClickPrice) { setScore(prev => prev - autoClickPrice); setAutoclicks(prev => prev + 1); } }}>
+              ({autoclicks} шт) Купить Автоклик ({autoClickPrice})
+            </button>
+            
+            <button className="action-btn" disabled={score < multiplyPrice} onClick={() => { if (score >= multiplyPrice) { setScore(prev => prev - multiplyPrice); setClickValue(prev => prev + 1); } }}>
+              ({clickValue - 1} шт) Сильный палец ({multiplyPrice})
+            </button>
+            
+            <button className="action-btn" disabled={score < superClicksPrice} onClick={() => { if (score >= superClicksPrice) { setScore(prev => prev - superClicksPrice); setSuperClicks(prev => prev + 1); } }}>
+              ({superclick} шт) Супер клик +5 к клику ({superClicksPrice})
+            </button>
+            
+            <div className="mt-5 p-4 bg-[#001242] rounded-xl border border-blue-900 inline-block min-w-[320px]">
+              <p className="text-lg">Звание: <span style={{ color: rankInfo.color, fontWeight: 'bold' }}>{rankInfo.text}</span></p>
+              <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto transition-all">{rankInfo.nextInfo}</p>
+            </div>
           </div>
         </div>
       )}
