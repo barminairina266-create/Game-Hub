@@ -220,8 +220,8 @@ export default function Snake({
 
   const buyToken = () => { 
     const currentBalance = isNaN(apples) ? 0 : apples;
-    if (currentBalance >= 50) { 
-      setApples(currentBalance - 50); 
+    if (currentBalance >= 150) { 
+      setApples(currentBalance - 150); 
       setMultiTokens(t => t + 1); 
     } 
   };
@@ -229,7 +229,7 @@ export default function Snake({
   const sellToken = () => { 
     if (multiTokens >= 1) { 
       setMultiTokens(t => t - 1); 
-      setApples(a => (isNaN(a) ? 0 : a) + 35); 
+      setApples(a => (isNaN(a) ? 0 : a) + 125); 
     } 
   };
 
@@ -251,8 +251,8 @@ export default function Snake({
           <div className="mt-4 pt-3 border-t border-white/10 text-left">
             <p className="text-xs font-bold text-yellow-400 mb-2">🔄 Обменник валюты:</p>
             <div className="grid grid-cols-2 gap-2">
-              <button className="retro-btn !p-2 !m-0 text-[10px] w-full" disabled={safeApples < 50} onClick={buyToken}>Купить Токен<br/>(-50.0 🍏)</button>
-              <button className="retro-btn !p-2 !m-0 text-[10px] w-full" disabled={multiTokens < 1} onClick={sellToken}>Продать Токен<br/>(+35.0 🍏)</button>
+              <button className="retro-btn !p-2 !m-0 text-[10px] w-full" disabled={safeApples < 50} onClick={buyToken}>Купить Токен<br/>(-150.0 🍏)</button>
+              <button className="retro-btn !p-2 !m-0 text-[10px] w-full" disabled={multiTokens < 1} onClick={sellToken}>Продать Токен<br/>(+125.0 🍏)</button>
             </div>
           </div>
 
@@ -430,7 +430,7 @@ export default function Snake({
                   {active ? <span className="text-green-400 font-bold">Вкл</span> : owned ? (
                     <button className="retro-btn !p-1 !text-[10px] !m-0 !px-3" disabled={isPlaying} style={{background:'#555'}} onClick={() => setActiveSnakeSkin(s.id)}>Вкл</button>
                   ) : (
-                    <button className="retro-btn !p-1 !text-[10px] !m-0" disabled={safeApples < s.price || isPlaying} onClick={() => { if(safeApples >= s.price) { setApples(a=>a-s.price); setPurchasedSkins(p=>[...p, s.id]); setActiveSnakeSkin(s.id); } }}>{s.price.toFixed(1)} 🍏</button>
+                    <button className="retro-btn !p-1 !text-[10px] !m-0" disabled={safeApples < s.price || isPlaying} onClick={() => { if(safeApples >= s.price) { setApples(prev => prev - s.price); setPurchasedSkins(p=>[...p, s.id]); setActiveSnakeSkin(s.id); } }}>{s.price.toFixed(1)} 🍏</button>
                   )}
                 </div>
               );
@@ -451,7 +451,7 @@ export default function Snake({
                   {active ? <span className="text-green-400 font-bold">Вкл</span> : owned ? (
                     <button className="retro-btn !p-1 !text-[10px] !m-0 !px-3" disabled={isPlaying} style={{background:'#555'}} onClick={() => setActiveAppleSkin(a.id)}>Вкл</button>
                   ) : (
-                    <button className="retro-btn !p-1 !text-[10px] !m-0" disabled={safeApples < a.price || isPlaying} onClick={() => { if(safeApples >= a.price) { setApples(a=>a-a.price); setPurchasedSkins(p=>[...p, a.id]); setActiveAppleSkin(a.id); } }}>{a.price.toFixed(1)} 🍏</button>
+                    <button className="retro-btn !p-1 !text-[10px] !m-0" disabled={safeApples < a.price || isPlaying} onClick={() => { if(safeApples >= a.price) { setApples(prev => prev - a.price); setPurchasedSkins(p=>[...p, a.id]); setActiveAppleSkin(a.id); } }}>{a.price.toFixed(1)} 🍏</button>
                   )}
                 </div>
               );
